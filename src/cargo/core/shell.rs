@@ -554,12 +554,14 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use std::{cmp, mem, ptr};
-    use winapi::um::fileapi::*;
-    use winapi::um::handleapi::*;
-    use winapi::um::processenv::*;
-    use winapi::um::winbase::*;
-    use winapi::um::wincon::*;
-    use winapi::um::winnt::*;
+    use windows_sys::Win32::Foundation::{CloseHandle, CHAR, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{
+        CreateFileA, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows_sys::Win32::System::Console::{
+        GetConsoleScreenBufferInfo, GetStdHandle, CONSOLE_SCREEN_BUFFER_INFO, STD_ERROR_HANDLE,
+    };
+    use windows_sys::Win32::System::SystemServices::{GENERIC_READ, GENERIC_WRITE};
 
     pub(super) use super::{default_err_erase_line as err_erase_line, TtyWidth};
 
@@ -581,7 +583,7 @@ mod imp {
                 ptr::null_mut(),
                 OPEN_EXISTING,
                 0,
-                ptr::null_mut(),
+                0,
             );
             if h == INVALID_HANDLE_VALUE {
                 return TtyWidth::NoTty;

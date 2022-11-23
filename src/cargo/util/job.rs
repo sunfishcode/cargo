@@ -41,18 +41,20 @@ mod imp {
 
 #[cfg(windows)]
 mod imp {
+    use std::ffi::c_void;
     use std::io;
     use std::mem;
     use std::ptr;
 
     use log::info;
 
-    use winapi::shared::minwindef::*;
-    use winapi::um::handleapi::*;
-    use winapi::um::jobapi2::*;
-    use winapi::um::processthreadsapi::*;
-    use winapi::um::winnt::HANDLE;
-    use winapi::um::winnt::*;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
     pub struct Setup {
         job: Handle,
@@ -77,7 +79,7 @@ mod imp {
         // we're otherwise part of someone else's job object in this case.
 
         let job = CreateJobObjectW(ptr::null_mut(), ptr::null());
-        if job.is_null() {
+        if job == 0 {
             return None;
         }
         let job = Handle { inner: job };
@@ -92,8 +94,8 @@ mod imp {
         let r = SetInformationJobObject(
             job.inner,
             JobObjectExtendedLimitInformation,
-            &mut info as *mut _ as LPVOID,
-            mem::size_of_val(&info) as DWORD,
+            &mut info as *mut _ as *mut c_void,
+            mem::size_of_val(&info) as u32,
         );
         if r == 0 {
             return None;
@@ -121,8 +123,8 @@ mod imp {
                 let r = SetInformationJobObject(
                     self.job.inner,
                     JobObjectExtendedLimitInformation,
-                    &mut info as *mut _ as LPVOID,
-                    mem::size_of_val(&info) as DWORD,
+                    &mut info as *mut _ as *mut c_void,
+                    mem::size_of_val(&info) as u32,
                 );
                 if r == 0 {
                     info!("failed to configure job object to defaults: {}", last_err());
