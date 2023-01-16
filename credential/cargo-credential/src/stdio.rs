@@ -82,52 +82,44 @@ mod imp {
 #[cfg(unix)]
 mod imp {
     use super::Stdio;
-    use libc::{close, dup, dup2, STDIN_FILENO, STDOUT_FILENO};
-    use std::{fs::File, io::Error, os::fd::AsRawFd};
+    use rustix::fd::OwnedFd;
+    use rustix::io::dup;
+    use rustix::stdio::{dup2_stdin, dup2_stdout, stdin, stdout};
+    use std::{fs::File, io::Error};
     pub const IN_DEVICE: &str = "/dev/tty";
     pub const OUT_DEVICE: &str = "/dev/tty";
     pub const NULL_DEVICE: &str = "/dev/null";
 
     /// Restores previous stdio when dropped.
     pub struct ReplacementGuard {
-        std_fileno: i32,
-        previous: i32,
+        stdio: Stdio,
+        previous: OwnedFd,
     }
 
     impl ReplacementGuard {
         pub(super) fn new(stdio: Stdio, replacement: &mut File) -> Result<ReplacementGuard, Error> {
-            let std_fileno = match stdio {
-                Stdio::Stdin => STDIN_FILENO,
-                Stdio::Stdout => STDOUT_FILENO,
+            // Duplicate the existing stdin file to a new descriptor
+            let previous = match stdio {
+                Stdio::Stdin => dup(stdin())?,
+                Stdio::Stdout => dup(stdout())?,
             };
 
-            let previous;
-            unsafe {
-                // Duplicate the existing stdin file to a new descriptor
-                previous = dup(std_fileno);
-                if previous == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                // Replace stdin with the replacement file
-                if dup2(replacement.as_raw_fd(), std_fileno) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
+            // Replace stdin with the replacement file
+            match stdio {
+                Stdio::Stdin => dup2_stdin(replacement)?,
+                Stdio::Stdout => dup2_stdout(replacement)?,
             }
 
-            Ok(ReplacementGuard {
-                previous,
-                std_fileno,
-            })
+            Ok(ReplacementGuard { previous, stdio })
         }
     }
 
     impl Drop for ReplacementGuard {
         fn drop(&mut self) {
-            unsafe {
-                // Put previous file back in to stdin
-                dup2(self.previous, self.std_fileno);
-                // Close the file descriptor we used as a backup
-                close(self.previous);
+            // Put previous file back in to stdin
+            match self.stdio {
+                Stdio::Stdin => dup2_stdin(&self.previous).unwrap(),
+                Stdio::Stdout => dup2_stdout(&self.previous).unwrap(),
             }
         }
     }

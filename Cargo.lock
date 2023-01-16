@@ -266,7 +266,6 @@ dependencies = [
  "itertools 0.11.0",
  "jobserver",
  "lazycell",
- "libc",
  "libgit2-sys",
  "memchr",
  "opener",
@@ -277,6 +276,7 @@ dependencies = [
  "pulldown-cmark",
  "rand",
  "rustfix",
+ "rustix",
  "same-file",
  "semver",
  "serde",
@@ -308,7 +308,7 @@ name = "cargo-credential"
 version = "0.4.1"
 dependencies = [
  "anyhow",
- "libc",
+ "rustix",
  "serde",
  "serde_json",
  "snapbox",
@@ -405,9 +405,10 @@ dependencies = [
  "core-foundation",
  "filetime",
  "hex",
+ "io-lifetimes",
  "jobserver",
- "libc",
  "miow",
+ "rustix",
  "same-file",
  "sha2",
  "shell-escape",
@@ -1919,6 +1920,17 @@ checksum = "d5477fe2230a79769d8dc68e0eabf5437907c0457a5614a9e8dddb67f65eb65d"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "io-lifetimes"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2"
+dependencies = [
+ "hermit-abi 0.3.2",
+ "libc",
+ "windows-sys",
 ]
 
 [[package]]

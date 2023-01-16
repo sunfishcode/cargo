@@ -478,21 +478,11 @@ fn supports_color(choice: anstream::ColorChoice) -> bool {
 #[cfg(unix)]
 mod imp {
     use super::{Shell, TtyWidth};
-    use std::mem;
 
     pub fn stderr_width() -> TtyWidth {
-        unsafe {
-            let mut winsize: libc::winsize = mem::zeroed();
-            // The .into() here is needed for FreeBSD which defines TIOCGWINSZ
-            // as c_uint but ioctl wants c_ulong.
-            if libc::ioctl(libc::STDERR_FILENO, libc::TIOCGWINSZ.into(), &mut winsize) < 0 {
-                return TtyWidth::NoTty;
-            }
-            if winsize.ws_col > 0 {
-                TtyWidth::Known(winsize.ws_col as usize)
-            } else {
-                TtyWidth::NoTty
-            }
+        match rustix::termios::tcgetwinsize(&rustix::stdio::stderr()) {
+            Ok(winsize) if winsize.ws_col > 0 => TtyWidth::Known(winsize.ws_col as usize),
+            _ => TtyWidth::NoTty,
         }
     }
 

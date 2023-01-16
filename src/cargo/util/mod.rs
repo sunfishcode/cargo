@@ -222,17 +222,20 @@ pub fn try_canonicalize<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
 /// [`umask`]: https://man7.org/linux/man-pages/man2/umask.2.html
 #[cfg(unix)]
 pub fn get_umask() -> u32 {
+    use rustix::fs::Mode;
     use std::sync::OnceLock;
-    static UMASK: OnceLock<libc::mode_t> = OnceLock::new();
-    // SAFETY: Syscalls are unsafe. Calling `umask` twice is even unsafer for
-    // multithreading program, since it doesn't provide a way to retrieve the
-    // value without modifications. We use a static `OnceLock` here to ensure
-    // it only gets call once during the entire program lifetime.
-    *UMASK.get_or_init(|| unsafe {
-        let umask = libc::umask(0o022);
-        libc::umask(umask);
-        umask
-    }) as u32 // it is u16 on macos
+    static UMASK: OnceLock<Mode> = OnceLock::new();
+    // SAFETY: Calling `umask` twice is unsafe for multithreading program,
+    // since it doesn't provide a way to retrieve the value without
+    // modifications. We use a static `OnceLock` here to ensure it only gets
+    // call once during the entire program lifetime.
+    UMASK
+        .get_or_init(|| {
+            let umask = rustix::process::umask(Mode::from_bits_retain(0o022));
+            rustix::process::umask(umask);
+            umask
+        })
+        .bits() as u32 // it is u16 on macos
 }
 
 #[cfg(test)]

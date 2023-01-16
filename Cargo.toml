@@ -54,10 +54,10 @@ humantime = "2.1.0"
 ignore = "0.4.20"
 im-rc = "15.1.0"
 indexmap = "2"
+io-lifetimes = "1.0.11"
 itertools = "0.11.0"
 jobserver = "0.1.26"
 lazycell = "1.3.0"
-libc = "0.2.148"
 libgit2-sys = "0.16.1"
 libloading = "0.8.1"
 memchr = "2.6.4"
@@ -74,6 +74,7 @@ proptest = "1.3.1"
 pulldown-cmark = { version = "0.9.3", default-features = false }
 rand = "0.8.5"
 rustfix = "0.6.1"
+rustix = { version = "0.38.0", features = ["event", "fs", "process", "stdio", "termios"] }
 same-file = "1.0.6"
 security-framework = "2.9.2"
 semver = { version = "1.0.20", features = ["serde"] }
@@ -155,7 +156,6 @@ indexmap.workspace = true
 itertools.workspace = true
 jobserver.workspace = true
 lazycell.workspace = true
-libc.workspace = true
 libgit2-sys.workspace = true
 memchr.workspace = true
 opener.workspace = true
@@ -165,6 +165,7 @@ pathdiff.workspace = true
 pulldown-cmark.workspace = true
 rand.workspace = true
 rustfix.workspace = true
+rustix.workspace = true
 semver.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde-untagged.workspace = true

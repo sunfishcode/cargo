@@ -399,114 +399,79 @@ fn acquire(
     Ok(())
 }
 
-#[cfg(all(target_os = "linux", not(target_env = "musl")))]
+#[cfg(target_os = "linux")]
 fn is_on_nfs_mount(path: &Path) -> bool {
     use std::ffi::CString;
-    use std::mem;
     use std::os::unix::prelude::*;
 
     let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
         return false;
     };
 
-    unsafe {
-        let mut buf: libc::statfs = mem::zeroed();
-        let r = libc::statfs(path.as_ptr(), &mut buf);
-
-        r == 0 && buf.f_type as u32 == libc::NFS_SUPER_MAGIC as u32
+    if let Ok(buf) = rustix::fs::statfs(path) {
+        buf.f_type as u32 == rustix::fs::NFS_SUPER_MAGIC as u32
+    } else {
+        false
     }
 }
 
-#[cfg(any(not(target_os = "linux"), target_env = "musl"))]
+#[cfg(not(target_os = "linux"))]
 fn is_on_nfs_mount(_path: &Path) -> bool {
     false
 }
 
 #[cfg(unix)]
 mod sys {
+    use rustix::fs::FlockOperation;
     use std::fs::File;
     use std::io::{Error, Result};
-    use std::os::unix::io::AsRawFd;
 
     pub(super) fn lock_shared(file: &File) -> Result<()> {
-        flock(file, libc::LOCK_SH)
+        flock(file, FlockOperation::LockShared)
     }
 
     pub(super) fn lock_exclusive(file: &File) -> Result<()> {
-        flock(file, libc::LOCK_EX)
+        flock(file, FlockOperation::LockExclusive)
     }
 
     pub(super) fn try_lock_shared(file: &File) -> Result<()> {
-        flock(file, libc::LOCK_SH | libc::LOCK_NB)
+        flock(file, FlockOperation::NonBlockingLockShared)
     }
 
     pub(super) fn try_lock_exclusive(file: &File) -> Result<()> {
-        flock(file, libc::LOCK_EX | libc::LOCK_NB)
+        flock(file, FlockOperation::NonBlockingLockExclusive)
     }
 
     pub(super) fn unlock(file: &File) -> Result<()> {
-        flock(file, libc::LOCK_UN)
+        flock(file, FlockOperation::Unlock)
     }
 
     pub(super) fn error_contended(err: &Error) -> bool {
-        err.raw_os_error().map_or(false, |x| x == libc::EWOULDBLOCK)
+        rustix::io::Errno::from_io_error(err).map_or(false, |x| x == rustix::io::Errno::WOULDBLOCK)
     }
 
     pub(super) fn error_unsupported(err: &Error) -> bool {
-        match err.raw_os_error() {
+        match rustix::io::Errno::from_io_error(err) {
             // Unfortunately, depending on the target, these may or may not be the same.
             // For targets in which they are the same, the duplicate pattern causes a warning.
             #[allow(unreachable_patterns)]
-            Some(libc::ENOTSUP | libc::EOPNOTSUPP) => true,
-            Some(libc::ENOSYS) => true,
+            Some(rustix::io::Errno::NOTSUP) | Some(rustix::io::Errno::OPNOTSUPP) => true,
+            Some(rustix::io::Errno::NOSYS) => true,
             _ => false,
         }
     }
 
     #[cfg(not(target_os = "solaris"))]
-    fn flock(file: &File, flag: libc::c_int) -> Result<()> {
-        let ret = unsafe { libc::flock(file.as_raw_fd(), flag) };
-        if ret < 0 {
-            Err(Error::last_os_error())
-        } else {
-            Ok(())
-        }
+    fn flock(file: &File, flag: FlockOperation) -> Result<()> {
+        rustix::fs::flock(file, flag)?;
+        Ok(())
     }
 
     #[cfg(target_os = "solaris")]
-    fn flock(file: &File, flag: libc::c_int) -> Result<()> {
+    fn flock(file: &File, flag: FlockOperation) -> Result<()> {
         // Solaris lacks flock(), so try to emulate using fcntl()
-        let mut flock = libc::flock {
-            l_type: 0,
-            l_whence: 0,
-            l_start: 0,
-            l_len: 0,
-            l_sysid: 0,
-            l_pid: 0,
-            l_pad: [0, 0, 0, 0],
-        };
-        flock.l_type = if flag & libc::LOCK_UN != 0 {
-            libc::F_UNLCK
-        } else if flag & libc::LOCK_EX != 0 {
-            libc::F_WRLCK
-        } else if flag & libc::LOCK_SH != 0 {
-            libc::F_RDLCK
-        } else {
-            panic!("unexpected flock() operation")
-        };
-
-        let mut cmd = libc::F_SETLKW;
-        if (flag & libc::LOCK_NB) != 0 {
-            cmd = libc::F_SETLK;
-        }
-
-        let ret = unsafe { libc::fcntl(file.as_raw_fd(), cmd, &flock) };
-
-        if ret < 0 {
-            Err(Error::last_os_error())
-        } else {
-            Ok(())
-        }
+        rustix::fs::fcntl_lock(file, flag)?;
+        Ok(())
     }
 }
 

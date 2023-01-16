@@ -541,7 +541,7 @@ fn maybe_readonly(err: &anyhow::Error) -> bool {
             }
 
             #[cfg(unix)]
-            return io.raw_os_error() == Some(libc::EROFS);
+            return io.raw_os_error() == Some(rustix::io::Errno::ROFS.raw_os_error());
         }
 
         false

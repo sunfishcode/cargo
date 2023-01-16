@@ -597,7 +597,7 @@ mod imp {
     }
 
     pub fn command_line_too_big(err: &io::Error) -> bool {
-        err.raw_os_error() == Some(libc::E2BIG)
+        err.raw_os_error() == Some(rustix::io::Errno::TOOBIG.raw_os_error())
     }
 }
 
